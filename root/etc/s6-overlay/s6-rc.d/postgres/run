@@ -4,9 +4,45 @@ export PGDATA=/config/postgres
 
 echo "Starting postgres..."
 
-if [ -f "${PGDATA}/PG_VERSION" ] && [ $(cat "${PGDATA}/PG_VERSION" || echo "") == "9.6" ]; then
-  echo "You are trying to update from a UISP version older than 1.4.0, which is not supported. Please update to a version prior to 2.4.0 first, ideally one major version at a time."
-  exit 1
+cleanupMigration() {
+  echo "cleaning up failed migration attempt"
+  rm -rf "${PGDATA}/data_new" "${PGDATA}/analyze_new_cluster.sh" "${PGDATA}/delete_old_cluster.sh"
+  mv "${PGDATA}/data_old/"* "${PGDATA}"
+  rm -rf "${PGDATA}/data_old"
+  if [ -f "${PGDATA}/global/pg_control.old" ]; then
+    mv "${PGDATA}/global/pg_control.old" "${PGDATA}/global/pg_control"
+  fi
+}
+
+if [ -d "${PGDATA}/data_old" ]; then
+  cleanupMigration
+fi
+
+if [ -f "${PGDATA}/PG_VERSION" ] && [ $(cat "${PGDATA}/PG_VERSION" || echo "") == "13" ]; then
+  echo "postgres 13 detected, starting migration"
+
+  if [ ! -d "/config/postgres_13" ]; then
+    echo "backing up postgres data to /config/postgres_13"
+    cp -r /config/postgres/ /config/postgres_13
+  fi
+
+  echo "unpacking postgres 13 and dependencies"
+  cat /postgres/postgres* | tar xvz -iC /postgres/13 usr --strip-components 1
+  cp -r /postgres/13/libexec/postgresql13/* /postgres/13/bin/
+  cp -r /postgres/13/lib/postgresql13 /usr/lib/
+  cp -r /postgres/13/share/postgresql13 /usr/share/
+  echo "files unpacked, running migration script"
+
+  if s6-setuidgid unms bash /migrate.sh 13; then
+    echo "migration done, removing postgres 13"
+    rm -rf /postgres
+    echo "postgres 13 removed, starting postgres 13..."
+  else
+    echo "ERROR: POSTGRES MIGRATION FAILED!"
+    echo "PLEASE EXAMINE UPGRADE LOGS AT ${PGDATA}"
+    cleanupMigration
+    echo "trying to start postgres anyways"
+  fi
 fi
 
 s6-setuidgid unms postgres

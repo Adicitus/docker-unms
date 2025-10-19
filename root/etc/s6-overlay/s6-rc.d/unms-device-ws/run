@@ -1,0 +1,45 @@
+#!/command/with-contenv sh
+
+export HOME=/home/app
+export HTTP_PORT=8081
+export WS_PORT=8082
+export WS_SHELL_PORT=8083
+export UNMS_RABBITMQ_HOST=127.0.0.1
+export UNMS_RABBITMQ_PORT=5672
+export UNMS_SIRIDB_HOST=127.0.0.1
+export UNMS_SIRIDB_PORT=9000
+export UNMS_PG_HOST=127.0.0.1
+export UNMS_PG_PORT=5432
+export UNMS_PG_USER=unms
+export UNMS_PG_PASSWORD=unms
+export UNMS_PG_SCHEMA=unms
+export UNMS_PG_DB=unms
+export UNMS_FLUENTD_HOST=127.0.0.1
+export UNMS_FLUENTD_PORT=8081
+export UNMS_NGINX_HOST=127.0.0.1
+export UNMS_NGINX_PORT=12345
+export UNMS_NETFLOW_PORT=2055
+export UCRM_HOST=127.0.0.1
+export UCRM_PORT=9081
+export UCRM_PG_USER=ucrm
+export UCRM_PG_SCHEMA=ucrm
+export UCRM_PG_PASSWORD=ucrm
+export NODE_ENV=production
+export CLUSTER_SIZE=auto
+export USE_LOCAL_DISCOVERY=true
+export PATH=$PATH:/home/app/unms/node_modules/.bin
+export UISP_PATH=/home/app/unms
+export UNMS_API_HOST=localhost
+. /sharedenv
+
+if [ "$QUIET_MODE" = "1" ]; then
+  echo "Starting UNMS device-ws in quiet mode..."
+  cd /home/app/unms
+  s6-setuidgid unms docker-entrypoint.sh device-ws.sh >> /config/unms/logs/unms-device-ws.log 2>&1
+
+  printf "\n\nUNMS device-ws exited, last 100 lines of log:\n\n"
+  tail -n 100 /config/unms/logs/unms-device-ws.log
+else
+  cd /home/app/unms
+  s6-setuidgid unms docker-entrypoint.sh device-ws.sh 2>&1  | tee -a /config/unms/logs/unms-device-ws.log
+fi
